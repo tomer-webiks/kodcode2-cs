@@ -42,6 +42,7 @@
             this.txtId.Name = "txtId";
             this.txtId.Size = new System.Drawing.Size(185, 22);
             this.txtId.TabIndex = 0;
+            this.txtId.TextChanged += new System.EventHandler(this.txtId_TextChanged);
             // 
             // lblId
             // 

@@ -37,5 +37,10 @@ namespace time_clock
         {
 
         }
+
+        private void txtId_TextChanged(object sender, EventArgs e)
+        {
+
+        }
     }
 }

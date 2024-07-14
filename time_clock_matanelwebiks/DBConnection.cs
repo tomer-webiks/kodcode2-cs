@@ -8,17 +8,22 @@ using System.Data.SqlClient;
 
 namespace time_clock
 {
+
     internal class DBConnection
     {
-        static SqlConnection sqlConnection;
         static string connectionString = "server = DESKTOP-3JPK806\\SQLEXPRESS;initial catalog=TimeClock; user id=sa; password=1234;TrustServerCertificate=Yes";
 
+        private static SqlConnection _sqlConnection;
         public static bool Connect()
         {
             try
             {
-                sqlConnection = new SqlConnection(connectionString);
-                sqlConnection.Open();
+                if (_sqlConnection == null)
+                {
+                    _sqlConnection = new SqlConnection(connectionString);
+                }
+
+                _sqlConnection.Open();
                 return true;
 
             }
@@ -36,7 +41,7 @@ namespace time_clock
                 try
                 {
                     SqlCommand cmd = new SqlCommand();
-                    cmd.Connection = sqlConnection;
+                    cmd.Connection = _sqlConnection;
                     cmd.CommandText = sql;
 
                     // Add parameters
