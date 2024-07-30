@@ -1,4 +1,5 @@
-﻿
+﻿using System.Data.SqlClient;
+
 namespace Learning_Console{
     static class Program
     {
@@ -6,7 +7,8 @@ namespace Learning_Console{
         private static readonly string[] _exercises =
         {
             "Classes 1",
-            "Classes 2"
+            "Classes 2",
+            "XML Start"
         };
 
         static void Main(string[] args)
@@ -29,6 +31,7 @@ namespace Learning_Console{
                         break;
                     case "2":
                         Classes_2.Main.Start();
+                        object sql = new SqlConnection("");
                         break;
                     case "x":
                         isExit = true;

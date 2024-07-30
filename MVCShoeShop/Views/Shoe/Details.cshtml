@@ -1,0 +1,20 @@
+﻿@model MVCShoeShop.Models.Shoe;
+
+@{
+    ViewData["Title"] = "Shoe Details";
+}
+<h1>@ViewData["Title"]</h1>
+
+        @if (Model != null) {
+
+            <div>ID: @Model.Id</div>
+            <div>Color: @Model.Color</div>
+            <div>Size: @Model.Size</div>
+
+        } else {
+            <div>Shoe not found!</div>
+        }
+
+    </tbody>
+</table>
+

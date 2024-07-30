@@ -1,0 +1,22 @@
+﻿@model MVCShoeShop.Models.Shoe
+@{
+    ViewData["Title"] = "Edit Shoe";
+}
+<h1>@ViewData["Title"]</h1>
+<div>
+    <form asp-action="UpdateShoe" method="post">
+        <label>
+            <span>Id</span>
+            <input type="text" asp-for="Id" value="@Model.Id"/>
+        </label>
+        <label>
+            <span>Color</span>
+            <input type="text" asp-for="Color" value="@Model.Color" />
+        </label>
+        <label>
+            <span>Size</span>
+            <input type="text" asp-for="Size" value="@Model.Size"/>
+        </label>
+        <button type="submit">עדכן נעל</button>
+    </form>
+</div>

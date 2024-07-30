@@ -19,7 +19,7 @@ namespace time_clock
             string[] parameters = { "@id", "@password" };
             string[] values = { id, password };
 
-            string result = DBConnection.runSQL(_loginSQL, parameters, values);
+            string result = DBConnection.RunSQLSingleResult(_loginSQL, parameters, values);
 
             // 3. Return response
             return result;
