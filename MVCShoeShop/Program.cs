@@ -1,7 +1,13 @@
+using Microsoft.EntityFrameworkCore;
+using MVCShoeShop.DAL;
+
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Add services to the container - DI - Dependency Injection
 builder.Services.AddControllersWithViews();
+string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddDbContext<ShoeDbContext>(options => options.UseSqlServer(connectionString));
 
 var app = builder.Build();
 
@@ -22,6 +28,6 @@ app.UseAuthorization();
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+    pattern: "{controller=Shoe}/{action=List}/{id?}");
 
 app.Run();

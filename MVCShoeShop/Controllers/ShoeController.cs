@@ -1,45 +1,36 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using MVCShoeShop.DAL;
 using MVCShoeShop.Models;
+using MVCShoeShop.ViewModels;
 using System.Diagnostics;
+
 namespace MVCShoeShop.Controllers
 {
     public class ShoeController: Controller
     {
         private readonly ILogger<HomeController> _logger;
-        public static List<Shoe> Shoes = new List<Shoe>()
+        private readonly ShoeDbContext _shoeContext;
+        public ShoeController(ShoeDbContext shoeContext, ILogger<HomeController> logger)
         {
-            new Shoe()
-            {
-                Id = 1,
-                Color = "Black",
-                Size = 45
-            },
-            new Shoe()
-            {
-                Id = 2,
-                Color = "White",
-                Size = 35
-            }
-        };
-        public ShoeController(ILogger<HomeController> logger)
-        {
+            _shoeContext = shoeContext;
             _logger = logger;
         }
 
 
-
         // -- VIEW --
-        public IActionResult ShoeList()
+        public IActionResult List()
         {
-            return View(Shoes);
+            var shoes = _shoeContext.Shoes.Include(s => s.Images)?.ToList();
+            return View(shoes);
         }
 
         // אני מנסה לקלוט משתנה
         // id
         // שאמור להגיע אלי מהכתובת אינטרנט בפרמטר ה-3
-        public IActionResult ShoeDetails(int id)
+        public IActionResult Details(int id)
         {
-            Shoe? shoe = Shoes.Find(shoe => shoe.Id == id);
+            Shoe? shoe = _shoeContext.Shoes.Find(id);
             return View(shoe);
         }
 
@@ -47,42 +38,117 @@ namespace MVCShoeShop.Controllers
         // -- CREATE --
         // מתודה שמציגה דף יצירת נעל
         // GET
-        public IActionResult CreateShoe()
+        [Route("/Shoes/New")]
+        public IActionResult New()
         {
-            return View();
+            ShoeWithCategories sc = new ShoeWithCategories()
+            {
+                Shoe = new Shoe(),
+                Categories = _shoeContext.Categories.ToList()
+            };
+            return View(sc);
         }
 
         // מתודה שמנסה לשמור נעל חדשה במערכת
         [HttpPost]
-        public IActionResult CreateShoe(Shoe shoe)
+        [Route("/Shoes/Create")]
+        public IActionResult Create(int? SelectedCategoryId, Shoe shoe, List<IFormFile> imageFiles)
         {
-            Shoes.Add(shoe);
-            return RedirectToAction("ShoeList");
+            // Create Image objects - proper
+            if (imageFiles != null && imageFiles.Count > 0)
+            {
+                foreach (var file in imageFiles)
+                {
+                    using (var memoryStream = new MemoryStream())
+                    {
+                        file.CopyTo(memoryStream);
+                        var image = new Image
+                        {
+                            ImageData = memoryStream.ToArray(),
+                            ContentType = file.ContentType
+                        };
+                        shoe.Images.Add(image);
+                    }
+                }
+            }
+
+            if (SelectedCategoryId != null)
+            {
+                Category category = _shoeContext.Categories.Find(SelectedCategoryId);
+                shoe.Category = category;
+            }
+
+            _shoeContext.Shoes.Add(shoe);
+            _shoeContext.SaveChanges();
+            
+            return RedirectToAction("Index");
+        }
+
+        [HttpPost]
+        [Route("/Shoes/{shoeId}/Images/{imageId}")]
+        public IActionResult DeleteImage([FromRoute] int shoeId, [FromRoute] int imageId)
+        {
+            var image = _shoeContext.Images.Find(imageId);
+            if (image != null)
+            {
+                _shoeContext.Images.Remove(image);
+                _shoeContext.SaveChanges();
+            }
+            return RedirectToAction(nameof(Index));
         }
 
 
         // -- UPDATE --
         // מתודה שמציגה דף יצירת נעל
-        public IActionResult EditShoe(int id)
+        [HttpGet]
+        [Route("/Shoes/Edit/{id}")]
+        public async Task<IActionResult> Edit([FromRoute] int id)
         {
             // למצוא נעל ע"פ מזהה שמקבלים בכתובת אינטרנט
-            Shoe? shoe = Shoes.Find(shoe => shoe.Id == id);
+            var shoe = await _shoeContext.Shoes.Include(s => s.Images).FirstOrDefaultAsync(p => p.Id == id);
+            if (shoe == null)
+            {
+                return NotFound();
+            }
             return View(shoe);
         }
 
         // מתודה שמנסה לשמור נעל חדשה במערכת
         [HttpPost]
-        [Route("")]
-        public IActionResult Update(Shoe shoe)
+        [Route("/Shoes/Update/{id}")]
+        public async Task<IActionResult> Update([FromRoute] int id, [FromForm] Shoe shoe, List<IFormFile> imageFiles)
         {
-            // לעדכן נעל
-            int index = Shoes.FindIndex(s => s.Id == shoe.Id);
-            if (index != -1)
+            if (id != shoe.Id)
             {
-                Shoes[index] = shoe;
+                return BadRequest();
             }
 
-            return RedirectToAction("ShoeList");
+            if (ModelState.IsValid)
+            {
+                _shoeContext.Update(shoe);
+                await _shoeContext.SaveChangesAsync();
+
+                if (imageFiles != null && imageFiles.Count > 0)
+                {
+                    foreach (var file in imageFiles)
+                    {
+                        using (var memoryStream = new MemoryStream())
+                        {
+                            await file.CopyToAsync(memoryStream);
+                            var image = new Image
+                            {
+                                ImageData = memoryStream.ToArray(),
+                                ContentType = file.ContentType
+                            };
+                            _shoeContext.Images.Add(image);
+                        }
+                    }
+                    await _shoeContext.SaveChangesAsync();
+                }
+
+                return RedirectToAction(nameof(Index));
+            }
+            return View(shoe);
         }
 
 

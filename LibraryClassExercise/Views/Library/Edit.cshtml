@@ -1,0 +1,76 @@
+﻿@model LibraryClassExercise.Models.Library
+
+@{
+    ViewData["Title"] = "Edit";
+}
+
+<h1>Edit</h1>
+
+<h4>Library</h4>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <form asp-action="Edit">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div class="form-group">
+                <label asp-for="Id" class="control-label"></label>
+                <input asp-for="Id" class="form-control" />
+                <span asp-validation-for="Id" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="Name" class="control-label"></label>
+                <input asp-for="Name" class="form-control" />
+                <span asp-validation-for="Name" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <input type="submit" value="Save" class="btn btn-primary" />
+            </div>
+        </form>
+    </div>
+</div>
+
+<hr/>
+<h4>Shelves</h4>
+@* List of Shelves *@
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                Id
+            </th>
+            <th>
+                Height
+            </th>
+            <th>
+                Width
+            </th>
+            <th>
+                <a asp-controller="Shelf" asp-action="Create" asp-route-libraryId="@Model.Id">Create New Shelf</a>
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (Shelf shelf in Model.Shelves)
+{
+    <tr>
+        <td>
+            @Html.DisplayFor(modelItem => shelf.Id)
+        </td>
+        <td>
+            @Html.DisplayFor(modelItem => shelf.Height)
+        </td>
+        <td>
+            @Html.DisplayFor(modelItem => shelf.Width)
+        </td>
+        <td>
+            <a asp-controller="Shelf" asp-action="Edit" asp-route-libraryId="@Model.Id" asp-route-shelfId="@shelf.Id">Edit</a> |
+            <a asp-controller="Shelf" asp-action="Details" asp-route-libraryId="@Model.Id" asp-route-shelfId="@shelf.Id">Details</a> |
+            <a asp-controller="Shelf" asp-action="Delete" asp-route-libraryId="@Model.Id" asp-route-shelfId="@shelf.Id">Delete</a>
+        </td>
+    </tr>
+}
+</tbody>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

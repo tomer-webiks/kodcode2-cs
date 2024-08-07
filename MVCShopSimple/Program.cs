@@ -1,7 +1,13 @@
+using Microsoft.EntityFrameworkCore;
+using MVCShopSimple.DAL;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+
+string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddDbContext<ShoeDbContext>(options => options.UseSqlServer(connectionString));
 
 var app = builder.Build();
 

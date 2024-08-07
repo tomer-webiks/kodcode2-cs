@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using MVCShopSimple.DAL;
 using MVCShopSimple.Models;
 using System.Diagnostics;
 
@@ -6,9 +7,9 @@ namespace MVCShopSimple.Controllers
 {
     public class HomeController : Controller
     {
-        private readonly ILogger<HomeController> _logger;
+        private readonly ILogger<ShoeController> _logger;
 
-        public HomeController(ILogger<HomeController> logger)
+        public HomeController(ShoeDbContext shoeContext, ILogger<ShoeController> logger)
         {
             _logger = logger;
         }

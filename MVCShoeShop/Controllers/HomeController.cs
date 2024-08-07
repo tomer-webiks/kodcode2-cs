@@ -29,10 +29,6 @@ namespace MVCShoeShop.Controllers
         {
             return View();
         }
-        public IActionResult Friend()
-        {
-            return View();
-        }
         public IActionResult Privacy()
         {
             return View();
@@ -40,64 +36,6 @@ namespace MVCShoeShop.Controllers
         public IActionResult Profile()
         {
             return View();
-        }
-
-
-
-        // -- VIEW --
-        public IActionResult ShoeList()
-        {
-            return View(Shoes);
-        }
-
-        // אני מנסה לקלוט משתנה
-        // id
-        // שאמור להגיע אלי מהכתובת אינטרנט בפרמטר ה-3
-        public IActionResult ShoeDetails(int id)
-        {
-            Shoe shoe = Shoes.Find(shoe => shoe.Id == id);
-            return View(shoe);
-        }
-
-
-        // -- CREATE --
-        // מתודה שמציגה דף יצירת נעל
-        // GET
-        public IActionResult CreateShoe()
-        {
-            return View();
-        }
-
-        // מתודה שמנסה לשמור נעל חדשה במערכת
-        [HttpPost]
-        public IActionResult CreateShoe(Shoe shoe)
-        {
-            Shoes.Add(shoe);
-            return RedirectToAction("ShoeList");
-        }
-
-
-        // -- UPDATE --
-        // מתודה שמציגה דף יצירת נעל
-        public IActionResult EditShoe(int id)
-        {
-            // למצוא נעל ע"פ מזהה שמקבלים בכתובת אינטרנט
-            Shoe? shoe = Shoes.Find(shoe => shoe.Id == id);
-            return View(shoe);
-        }
-
-        // מתודה שמנסה לשמור נעל חדשה במערכת
-        [HttpPost]
-        public IActionResult UpdateShoe(Shoe shoe)
-        {
-            // לעדכן נעל
-            int index = Shoes.FindIndex(s => s.Id == shoe.Id);
-            if (index != -1)
-            {
-                Shoes[index] = shoe;
-            }
-
-            return RedirectToAction("ShoeList");
         }
 
 

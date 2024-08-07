@@ -4,14 +4,14 @@
     {
         private string ConnectionString = "server = MATANEL_VATKIN\\SQLEXPRESS;initial catalog=friends_img;user id=sa;password=1234;TrustServerCertificate=Yes";
         private static Data _data;
-        private DBContext _layer;
+        private FriendDbContext _layer;
 
         private Data()
         {
-            _layer = new DBContext(ConnectionString);
+            _layer = new FriendDbContext(ConnectionString);
         }
 
-        public static DBContext Get
+        public static FriendDbContext Get
         {
             get
             {

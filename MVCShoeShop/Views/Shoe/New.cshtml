@@ -1,22 +1,27 @@
-﻿@model MVCShoeShop.Models.Shoe;
+﻿@model MVCShoeShop.ViewModels.ShoeWithCategories;
 @{
     ViewData["Title"] = "New Shoe";
 }
 <h1>@ViewData["Title"]</h1>
 <div>
-    <form asp-action="CreateShoe" method="post">
-        <lable>
-            <span>Id</span>
-            <input type="text" asp-for="Id" />
-        </lable>
-        <lable>
+    <form asp-controller="Shoes" asp-action="Create" method="post">
+        <label>
             <span>Color</span>
-            <input type="text" asp-for="Color" />
-        </lable>
-        <lable>
+            <input type="text" asp-for="Shoe.Color" value="@Model.Shoe.Color" />
+        </label>
+        <label>
             <span>Size</span>
-            <input type="text" asp-for="Size" />
-        </lable>
-        <button type="submit">הוסף נעל</button>
+            <input type="text" asp-for="Shoe.Size" value="@Model.Shoe.Size" />
+        </label>
+
+        @* רשימה של קטגוריות *@
+        @* @Html.DropDownListFor(Model.SelectedCategoryId, new SelectList(Model.Categories, "Id", "Name"), "Select Category"); *@
+        <select asp-for="SelectedCategoryId" class="form-control" asp-items="@(new SelectList(Model.Categories, "Id", "Name"))"></select>
+
+        <div class="form-group">
+            <label class="control-label">Images</label>
+            <input type="file" name="imageFiles" class="form-control" multiple />
+        </div>
+        <button type="submit">צור נעל</button>
     </form>
 </div>
