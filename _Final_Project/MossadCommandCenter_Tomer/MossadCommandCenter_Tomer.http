@@ -1,6 +1,0 @@
-@MossadCommandCenter_Tomer_HostAddress = http://localhost:5135
-
-GET {{MossadCommandCenter_Tomer_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
