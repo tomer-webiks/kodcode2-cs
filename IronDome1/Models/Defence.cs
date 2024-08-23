@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace IronDome1.Models
+namespace IronDome.Models
 {
     public enum DEFENCE_TYPE
     {

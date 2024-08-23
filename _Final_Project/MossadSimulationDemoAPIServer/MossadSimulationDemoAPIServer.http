@@ -1,0 +1,6 @@
+@MossadSimulationDemoAPIServer_HostAddress = http://localhost:5149
+
+GET {{MossadSimulationDemoAPIServer_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -7,15 +7,21 @@ class Program
     {
         Console.WriteLine("Main thread starting.");
 
-        BlockingCode(); // Blocking Code
-        //await BlockingTask(); // Blocking Task
-        //Task.Run(() => NonBlockingTask()); // NonBlocking Task
+        //BlockingCode(); // Blocking Code
+        //BlockingCode(); // Blocking Code
+        //BlockingTask(); // Blocking Task
+        //BlockingTask(); // Blocking Task
+
+        //Task.Run(() => BlockingCode()); // NonBlocking Task
+        //Task.Run(() => BlockingCode()); // NonBlocking Task
+        NonBlockingTask();
+        NonBlockingTask();
 
         Console.WriteLine("Main thread ending.");
-        Thread.Sleep(10000);
+        Thread.Sleep(20000);
     }
-
-    static void BlockingCode()
+    
+    static async Task BlockingCode()
     {
         Console.WriteLine($"Blocking code {Environment.NewLine}");
         for (int i = 0; i < 10; i++)
@@ -34,12 +40,13 @@ class Program
         }
     }
 
-    static async Task NonBlockingTask()
+    static async void NonBlockingTask()
     {
         for (int i = 0; i < 10; i++)
         {
             Console.WriteLine($"Long-running operation: {i + 1}");
-            await Task.Delay(1000); // Simulate work
+            await Task.Delay(2000); // Simulate work
+            Console.WriteLine("After wait period.");
         }
     }
 }

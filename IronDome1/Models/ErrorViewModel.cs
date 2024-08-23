@@ -1,4 +1,4 @@
-namespace IronDome1.Models
+namespace IronDome.Models
 {
     public class ErrorViewModel
     {

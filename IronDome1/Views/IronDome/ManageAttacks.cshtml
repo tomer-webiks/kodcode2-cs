@@ -1,28 +1,32 @@
-﻿@model IEnumerable<IronDome1.Models.Attack>
+﻿@model IEnumerable<IronDome.Models.Attack>
 
 @{
     ViewData["Title"] = "Manage Attacks";
 }
 
-<h1>ManageThreats</h1>
+<h1>Manage Attacks</h1>
 
 <p>
-    <a asp-action="NewAttack">Create New</a>
+    <a href="@Url.Action("NewAttack")" class="btn btn-primary">+ New Attack</a>
 </p>
+
 <table class="table">
     <thead>
         <tr>
             <th>
-                @Html.DisplayNameFor(model => model.Date)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.ThreatType)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.ThreatSource)
-            </th>
-            <th>
                 @Html.DisplayNameFor(model => model.IsActive)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Origin)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Type)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Count)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.StartTime)
             </th>
             <th>
                 @Html.DisplayNameFor(model => model.TimeToImpact)
@@ -34,37 +38,46 @@
 @foreach (var item in Model) {
         <tr>
             <td>
-                @Html.DisplayFor(modelItem => item.Date)
-            </td>
+                <input type="checkbox" value="@item.IsActive" @(item.IsActive ? "checked" : "") disabled />
+                </td>
+                <td>
+                    @Html.DisplayFor(modelItem => item.Origin.Name)
+                </td>
             <td>
-                @Html.DisplayFor(modelItem => item.ThreatType)
-            </td>
-            <td>
-                @Html.DisplayFor(modelItem => item.ThreatSource)
-            </td>
-            <td>
-                @Html.DisplayFor(modelItem => item.IsActive)
+                    @Html.DisplayFor(modelItem => item.Type.Name)
+                </td>
+                <td>
+                    @Html.DisplayFor(modelItem => item.Count)
+                </td>
+                <td>
+                    @Html.DisplayFor(modelItem => item.StartTime)
                 </td>
             <td>
                 @Html.DisplayFor(modelItem => item.TimeToImpact)
             </td>
             <td>
-                <a asp-action="Edit" asp-route-id="@item.ID">Edit</a> |
-                <a asp-action="Details" asp-route-id="@item.ID">Details</a> |
-                <a asp-action="Delete" asp-route-id="@item.ID">Delete</a>
-
-                @if ( @item.ActiveID == null )
+                @if (!@item.IsActive)
                 {
                     <form asp-action="StartAttack" asp-route-attackId="@item.ID">
                         <input type="submit" value="Attack" class="btn btn-primary" />
                     </form>
-                } else {
-                    <form asp-action="EndAttack" asp-route-attackId="@item.ID">
+                }
+                else
+                {
+                    <form asp-action="InterceptAttack" asp-route-attackId="@item.ID">
                         <input type="submit" value="End Attack" class="btn btn-primary" />
                     </form>
                 }
+            </td>
+            <td>
+                <a asp-action="Edit" asp-route-id="@item.ID">Edit</a> |
+                <a asp-action="Delete" asp-route-id="@item.ID">Delete</a>
             </td>
         </tr>
 }
     </tbody>
 </table>
+
+@section Scripts {
+    <script src="~/js/ws.js"></script>
+}

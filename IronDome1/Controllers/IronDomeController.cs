@@ -1,52 +1,69 @@
-using IronDome1.Models;
-using IronDome1.Contexts;
+using IronDome.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.SignalR;
-using System.Collections.Concurrent;
 using System.Diagnostics;
-using IronDome1.ViewModels;
+using IronDome.ViewModels;
+using Microsoft.EntityFrameworkCore;
+using IronDome.Hubs;
+using IronDome.Services;
+using IronDome.Contexts;
 
-namespace IronDome1.Controllers
+namespace IronDome.Controllers
 {
     public class IronDomeController : Controller
     {
-        private readonly IronDomeDbContext _context;
         private readonly ILogger<IronDomeController> _logger;
-        private static ConcurrentDictionary<string, CancellationTokenSource> _attacks = new ConcurrentDictionary<string, CancellationTokenSource>();
+        private readonly IHubContext<ChatHub> _chatHub;
+        private readonly IAttackService _attackService;
+        private readonly IronDomeDbContext _context;
 
-        public IronDomeController(IronDomeDbContext context, ILogger<IronDomeController> logger)
+        public IronDomeController(
+            IHubContext<ChatHub> chatHub,
+            IAttackService attackService,
+            ILogger<IronDomeController> logger,
+            IronDomeDbContext context)
         {
-            _context = context;
+            _attackService = attackService;
+            _chatHub = chatHub;
             _logger = logger;
+            _context = context;
         }
 
 
-        public IActionResult ManageAttacks()
+        public IActionResult Chat()
         {
-            List<Attack>? attacks = _context.Attacks.ToList();
+            var model = new ChatModel
+            {
+                Messages = new List<string>() // Initialize with empty list or actual data
+            };
+
+            return View(model);
+        }
+
+
+        public async Task<IActionResult> ManageAttacks()
+        {
+            List<Attack>? attacks = await _context.Attacks
+                .Include(a => a.Type)
+                .Include(a => a.Origin)
+                .ToListAsync();
+
             return View(attacks);
         }
 
-        public IActionResult NewAttack()
+        [Route("IronDome/Attack/New")]
+        public async Task<IActionResult> NewAttack()
         {
+            List<AttackType> atList = _context.AttackTypes.ToList();
+            List<AttackOrigin> aoList = _context.AttackOrigins.ToList();
             AttackViewModel avm = new AttackViewModel()
             {
                 Attack = new Attack(),
-                AttackTypes = Enum.GetValues(typeof(ATTACK_TYPE))
-                                .Cast<ATTACK_TYPE>()
-                                .Select(e => new SelectListItem
-                                {
-                                    Value = ((int)e).ToString(),
-                                    Text = e.ToString()
-                                }).ToList(),
-                AttackSources = Enum.GetValues(typeof(ATTACK_SOURCE))
-                                .Cast<ATTACK_SOURCE>()
-                                .Select(e => new SelectListItem
-                                {
-                                    Value = ((int)e).ToString(),
-                                    Text = e.ToString()
-                                }).ToList()
+                TypeSelectListItems = atList.Select(at =>
+                    new SelectListItem { Value = at.Id.ToString(), Text = at.Name }).ToList(),
+                OriginSelectListItems = aoList.Select(at =>
+                    new SelectListItem { Value = at.Id.ToString(), Text = at.Name }).ToList()
             };
 
             return View(avm);
@@ -59,7 +76,6 @@ namespace IronDome1.Controllers
             _logger.LogInformation("CreateAttack called");
 
             // 1. Create in the DB
-            attack.Date = DateTime.Now;
             attack.IsActive = false;
             _context.Attacks.Add(attack);
             await _context.SaveChangesAsync();
@@ -69,23 +85,13 @@ namespace IronDome1.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Route("IronDome/StartAttack/{attackId}")]
+        [Route("IronDome/Attack/{attackId}/Start")]
         public async Task<IActionResult> StartAttack([FromRoute] int attackId)
         {
-            // 2. Create a new Task/Thread
-            var attackActiveId = Guid.NewGuid().ToString();
-            Attack? attack = _context.Attacks.Find(attackId);
+            bool isStarted = await _attackService.StartAttack(attackId);
            
-            if (attack != null)
+            if (isStarted)
             {
-                attack.ActiveID = attackActiveId;
-                await _context.SaveChangesAsync();
-                var cts = new CancellationTokenSource();
-
-                _attacks[attackActiveId] = cts;
-
-                Task.Run(() => RunTask(attackActiveId, cts.Token), cts.Token);
-
                 return RedirectToAction("ManageAttacks");
             } else
             {
@@ -95,27 +101,22 @@ namespace IronDome1.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EndAttack(int attackId)
+        [Route("IronDome/Attack/{attackId}/Intercept")]
+        public async Task<IActionResult> InterceptAttack([FromRoute] int attackId)
         {
-            Attack? attack = _context.Attacks.Find(attackId);
+            bool isIntercepted = await _attackService.InterceptAttack(attackId);
 
-            if (attack != null && _attacks.TryRemove(attack.ActiveID, out var cts))
+            if (isIntercepted)
             {
-                cts.Cancel();
-                Attack? a = _context.Attacks.Find(attackId);
-
-                if (a != null)
-                {
-                    a.ActiveID = null;
-                    await _context.SaveChangesAsync();
-                }
                 return RedirectToAction("ManageAttacks");
             }
-
-            return NotFound("Attack not found");
+            else
+            {
+                return NotFound("Attack not found");
+            }
         }
 
-        private async Task RunTask(string attackId, CancellationToken token)
+        private async Task ExecuteAttack(int attackId, CancellationToken token)
         {
             try
             {
@@ -126,28 +127,18 @@ namespace IronDome1.Controllers
                     elapsed += 2;
                     var message = $"Attack {attackId} running for {elapsed} seconds.";
                     Console.WriteLine(message);
-                    //await _hubContext.Clients.All.SendAsync("ReceiveProgress", message);
+                    await _chatHub.Clients.All.SendAsync("ReceiveMessage", message);
                 }
 
                 // Finished
                 if (!token.IsCancellationRequested)
                 {
-                    //await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"Attack {attackId} completed.");
+                    //await _hubContext.Clients.All.SendAsync("ReceiveMessage", $"Attack {attackId} completed.");
                 }
             }
             catch (TaskCanceledException)
             {
-                //await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"Attack {attackId} cancelled.");
-            }
-            finally
-            {
-                Attack? attack = _context.Attacks.Find(attackId);
-
-                if (attack != null)
-                {
-                    attack.ActiveID = null;
-                    await _context.SaveChangesAsync();
-                }
+                //await _hubContext.Clients.All.SendAsync("ReceiveMessage", $"Attack {attackId} cancelled.");
             }
         }
 

@@ -1,10 +1,16 @@
 using Microsoft.EntityFrameworkCore;
-using IronDome1.Contexts;
+using IronDome.Contexts;
+using IronDome.Hubs;
+using IronDome.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+
+// SingalR
+builder.Services.AddSignalR();
+builder.Services.AddScoped<IAttackService, AttackService>();
 
 // DB
 string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -30,5 +36,6 @@ app.UseAuthorization();
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=IronDome}/{action=ManageAttacks}/{id?}");
+app.MapHub<ChatHub>("/chathub");
 
 app.Run();

@@ -1,4 +1,4 @@
-﻿@model IronDome1.ViewModels.AttackViewModel
+﻿@model IronDome.ViewModels.AttackViewModel
 
 @{
     ViewData["Title"] = "New Attack";
@@ -13,14 +13,19 @@
         <form asp-action="CreateAttack">
             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
             <div class="form-group">
-                <label asp-for="SelectedAttackType" class="control-label"></label>
-                <select asp-for="SelectedAttackType" asp-items="Model.AttackTypes" class="form-control"></select>
-                <span asp-validation-for="SelectedAttackType" class="text-danger"></span>
+                <label asp-for="Attack.Count" class="control-label"></label>
+                <input type="number" asp-for="Attack.Count" class="form-control"></input>
+                <span asp-validation-for="Attack.Count" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="Attack.TypeId" class="control-label"></label>
+                <select asp-for="Attack.TypeId" asp-items="Model.TypeSelectListItems" class="form-control"></select>
+                <span asp-validation-for="Attack.TypeId" class="text-danger"></span>
             </div>
             <div class="form-group">               
-                <label asp-for="SelectedAttackSource" class="control-label"></label>
-                <select asp-for="SelectedAttackSource" asp-items="Model.AttackSources" class="form-control"></select>
-                <span asp-validation-for="SelectedAttackSource" class="text-danger"></span>
+                <label asp-for="Attack.OriginId" class="control-label"></label>
+                <select asp-for="Attack.OriginId" asp-items="Model.OriginSelectListItems" class="form-control"></select>
+                <span asp-validation-for="Attack.OriginId" class="text-danger"></span>
             </div>
             <div class="form-group">
                 <input type="submit" value="Create" class="btn btn-primary" />
