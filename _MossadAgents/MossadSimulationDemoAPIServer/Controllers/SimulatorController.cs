@@ -1,6 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using System;
+using MossadSimulationDemoAPIServer.ViewModels;
+using MossadSimulationDemoAPIServer.Models;
+using MossadSimulationDemoAPIServer.Services;
+using Microsoft.AspNetCore.Http.HttpResults;
+using MossadSimulationDemoAPIServer.Middlewares;
 
 namespace MossadSimulationDemoAPIServer.Controllers
 {
@@ -11,21 +16,56 @@ namespace MossadSimulationDemoAPIServer.Controllers
         private static int _agentId = 1;
 
         private readonly ILogger<SimulatorController> _logger;
+        private readonly IGridService _gridService;
+        private readonly IConfiguration _configuration;
+        private readonly IAuthService _authService;
 
-        public SimulatorController(ILogger<SimulatorController> logger)
+        public SimulatorController(
+            IConfiguration configuration,
+            IGridService gridService,
+            IAuthService authService,
+            ILogger<SimulatorController> logger)
         {
+            _gridService = gridService;
             _logger = logger;
+            _configuration = configuration;
+            _authService = authService;
+        }
+
+        [HttpPost]
+        [Route("/login")]
+        public IActionResult Login([FromBody] LoginViewModel loginViewModel)
+        {
+            string token = null;
+            try
+            {
+                token = _authService.Login(loginViewModel.Id);
+                if (token == null)
+                {
+                    // Return a 401 Unauthorized response if login fails
+                    return Unauthorized("Login failed: Invalid credentials.");
+                } else
+                {
+                    return new JsonResult(new { token = token });
+                }
+            }
+            catch (Exception ex)
+            {
+                return new JsonResult($"Error {ex.Message}");
+            }
+
         }
 
         [HttpPost]
         [Route("/agents")]
+        [RequiresAuth]
         public IActionResult CreateAgent([FromBody] Agent agent)
         {
             try
             {
-                Console.WriteLine($"- POST /agents -- {JsonSerializer.Serialize(agent)}");
-                var result = new { id = _agentId++ };
-                return new JsonResult(result);
+                agent.Id = _agentId++;
+                _gridService.Agents.Add(agent);
+                return new JsonResult(new { id = agent.Id });
             }
             catch (Exception ex)
             {
@@ -35,79 +75,88 @@ namespace MossadSimulationDemoAPIServer.Controllers
 
         [HttpPut]
         [Route("/agents/{id}/pin")]
-        public IActionResult PinAgent(int id, [FromBody] Location location)
+        [RequiresAuth]
+        public IActionResult PinAgent(int id, [FromBody] LocationViewModel location)
         {
-            Console.WriteLine($"- PUT /agents/{id}/pin -- {location.X}:{location.Y}");
-            var result = new { id = _agentId++ };
-            return new JsonResult(result);
+            int agentIndex = _gridService.Agents.FindIndex(a => a.Id == id);
+            if (agentIndex != -1)
+            {
+                _gridService.Agents[agentIndex].Location.X = location.X;
+                _gridService.Agents[agentIndex].Location.Y = location.Y;
+            }
+
+            return new NoContentResult();
         }
 
         [HttpPut]
         [Route("/agents/{id}/move")]
-        public IActionResult MoveAgent(int id, [FromBody] DirectionName direction)
+        [RequiresAuth]
+        public IActionResult MoveAgent(int id, [FromBody] DirectionViewModel direction)
         {
-            Console.WriteLine($"- PUT /agents/{id}/move -- {JsonSerializer.Serialize(direction)}");
-            var result = new { id = _agentId++ };
-            return new JsonResult(result);
+            LocationViewModel shift = DirectionViewModel.ToLocation(direction);
+            int agentIndex = _gridService.Agents.FindIndex(a => a.Id == id);
+            int x = _gridService.Agents[agentIndex].Location.X += shift.X;
+            int y = _gridService.Agents[agentIndex].Location.Y += shift.Y;
+
+            if (agentIndex != -1 && x >= 0 && x < _gridService.MaxMatrixX && y >= 0 && y < _gridService.MaxMatrixY)
+            {
+                _gridService.Agents[agentIndex].Location.X = x;
+                _gridService.Agents[agentIndex].Location.Y = y;
+            }
+
+            return new NoContentResult();
         }
 
         [HttpPost]
         [Route("/targets")]
+        [RequiresAuth]
         public IActionResult CreateTarget([FromBody] Target target)
         {
-            Console.WriteLine($"- POST /targets -- {JsonSerializer.Serialize(target)}");
-            var result = new { id = _targetId++ };
-            return new JsonResult(result);
+            target.Id = _targetId++;
+            _gridService.Targets.Add(target);
+            return new JsonResult(new { id = target.Id });
         }
 
         [HttpPut]
         [Route("/targets/{id}/pin")]
-        public IActionResult PinTarget(int id, [FromBody] Location location)
+        [RequiresAuth]
+        public IActionResult PinTarget(int id, [FromBody] LocationViewModel location)
         {
-            Console.WriteLine($"- PUT /agents/{id}/pin -- {location.X}:{location.Y}");
-            var result = new { id = _agentId++ };
-            return new JsonResult(result);
+            int targetIndex = _gridService.Targets.FindIndex(t => t.Id == id);
+            if (targetIndex != -1)
+            {
+                _gridService.Targets[targetIndex].Location.X = location.X;
+                _gridService.Targets[targetIndex].Location.Y = location.Y;
+            }
+
+            return new NoContentResult();
         }
 
         [HttpPut]
         [Route("/targets/{id}/move")]
-        public IActionResult MoveTarget(int id, [FromBody] DirectionName direction)
+        [RequiresAuth]
+        public IActionResult MoveTarget(int id, [FromBody] DirectionViewModel direction)
         {
-            Console.WriteLine($"- PUT /targets/{id}/move -- {JsonSerializer.Serialize(direction)}");
-            var result = new { id = _agentId++ };
-            return new JsonResult(result);
+            LocationViewModel shift = DirectionViewModel.ToLocation(direction);
+            int targetIndex = _gridService.Targets.FindIndex(t => t.Id == id);
+            int x = _gridService.Targets[targetIndex].Location.X += shift.X;
+            int y = _gridService.Targets[targetIndex].Location.Y += shift.Y;
+
+            if (targetIndex != -1 && x >= 0 && x < _gridService.MaxMatrixX && y >= 0 && y < _gridService.MaxMatrixY)
+            {
+                _gridService.Targets[targetIndex].Location.X = x;
+                _gridService.Targets[targetIndex].Location.Y = y;
+            }
+
+            return new NoContentResult();
         }
 
         [HttpPost]
         [Route("/missions/update")]
+        [RequiresAuth]
         public IActionResult UpdateMissions()
         {
-            Console.WriteLine($"- POST /missions/update");
             return new JsonResult("");
         }
-    }
-
-    public class Location
-    {
-        public int X { get; set; }
-        public int Y { get; set; }
-    }
-
-    public class Agent
-    {
-        public string Nickname { get; set; }
-        public string PhotoUrl { get; set; }
-    }
-
-    public class Target
-    {
-        public string Name { get; set; }
-        public string Position { get; set; }
-        public string PhotoUrl { get; set; }
-    }
-
-    public class DirectionName
-    {
-        public string Direction { get; set; }
     }
 }

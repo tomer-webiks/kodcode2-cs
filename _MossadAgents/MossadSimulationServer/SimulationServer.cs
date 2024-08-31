@@ -1,8 +1,16 @@
 ﻿using System.Text.Json;
 using System.Text;
+using System.Net.Http.Headers;
 
 namespace MossadSimulationServer.Services
 {
+    public enum AUTH_TOKEN_TYPE
+    {
+        NONE,
+        BODY,
+        HEADER
+    }
+
     public class SimulationServer
     {
         private readonly HttpClient _httpClient;
@@ -15,21 +23,23 @@ namespace MossadSimulationServer.Services
         private List<int> _agentIds = new List<int>();
         private int _targetCounter = 0;
         private List<int> _targetIds = new List<int>();
+        private int _missionCounter = 1;
 
-        private int _maxMatrixX = 1000;
-        private int _maxMatrixY = 1000;
+        private int _maxMatrixX = 25;
+        private int _maxMatrixY = 25;
 
         private readonly int _minRandomDelay = 5;
         private readonly int _maxRandomDelay = 15;
         private int _maxMoves = 100;
         private int _agentMoveCounter = 0;
         private int _targetMoveCounter = 0;
-        private int _syncDelay = 3;
-        private int _moveDelay = 10;
+        private int _syncDelay = 1;
+        private int _moveDelay = 3;
 
         // Authentication
-        private static string _token = null;
-        private readonly int _loginAttempts = 5;
+        private AUTH_TOKEN_TYPE _authTokenType = AUTH_TOKEN_TYPE.HEADER; // off 
+        private static string? _token = null;
+        private readonly int _loginAttempts = 3;
         private readonly int _loginAttemptDelay = 5;
 
         private static readonly object[] agents = new[]
@@ -69,19 +79,24 @@ namespace MossadSimulationServer.Services
             _maxMoves = props.ContainsKey("maxMoves") ? props["maxMoves"] : _maxMoves;
             _maxMatrixX = props.ContainsKey("maxMatrixX") ? props["maxMatrixX"] : _maxMatrixX;
             _maxMatrixY = props.ContainsKey("maxMatrixY") ? props["maxMatrixY"] : _maxMatrixY;
-
-            Console.WriteLine("XX: " +  _maxMoves + " | " + props["maxMatrixX"]);
+            _maxAgents = props.ContainsKey("maxAgents") ? props["maxAgents"] : _maxAgents;
+            _maxTargets = props.ContainsKey("maxTargets") ? props["maxTargets"] : _maxTargets;
+            _authTokenType = props.ContainsKey("authTokenType") ? (AUTH_TOKEN_TYPE)props["authTokenType"] : _authTokenType;
         }
 
         // Method to start the service
-        public void Start()
+        public async Task Start()
         {
             // -- LOGIN and CHECK TOKEN --
-            //int loginCounter = 0;
-            //while (loginCounter++ < _loginAttempts && _token == null)
-            //{
-            //    await Task.Delay(TimeSpan.FromSeconds(_loginAttemptDelay));
-            //}
+            if (_authTokenType != AUTH_TOKEN_TYPE.NONE)
+            {
+                bool isLoggedIn = await Auth();
+                if (!isLoggedIn)
+                {
+                    Console.WriteLine("Couldn't Login.");
+                    return;
+                }
+            }
 
             // -- Create new objects + Random pin --
             List<Task> tasks = new List<Task>();
@@ -99,6 +114,39 @@ namespace MossadSimulationServer.Services
             Task.WaitAll(tasks.ToArray());
         }
 
+        private async Task<bool> Auth()
+        {
+            int loginCounter = 0;
+            while (loginCounter++ < _loginAttempts && _token == null)
+            {
+                Console.WriteLine($"Login Attempt {loginCounter}");
+                var clientName = new { id = "SimulationServer"};
+
+                try
+                {
+                    // Attempt to login
+                    var response = await _httpClient.PostAsync("/login", ToJSON(clientName));
+
+                    // Successful - return true
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var responseContent = await response.Content.ReadAsStringAsync();
+                        var jsonResponse = JsonDocument.Parse(responseContent);
+                        _token = jsonResponse.RootElement.GetProperty("token").GetString();
+                        return true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(_loginAttemptDelay));
+            }
+
+            return false;
+        }
+
         // Method to generate threats periodically
         private async Task GenerateTargetsAsync()
         {
@@ -109,12 +157,14 @@ namespace MossadSimulationServer.Services
                 // -- 1. Create a target
                 int targetId = -1;
                 var target = targets[random.Next(targets.Length)];
+                StringBuilder sb = new StringBuilder();
 
                 try
                 {
                     // POST it
-                    Console.WriteLine($"TARGET\t({_targetCounter})\t*\tPOST /targets -- {await ToJSON(target).ReadAsStringAsync()}");
-                    var response = await _httpClient.PostAsync("/targets", ToJSON(target));
+                    sb.Append($"TARGET\t{("(" + _targetCounter++ + ")").PadRight(7)} {"POST".PadRight(5)} /targets -- {await ToJSON(target).ReadAsStringAsync()}");
+
+                    var response = await SendHttpRequestAsync(HttpMethod.Post, "/targets", target);
 
                     // Handle response
                     response.EnsureSuccessStatusCode();
@@ -122,12 +172,14 @@ namespace MossadSimulationServer.Services
                     var jsonResponse = JsonDocument.Parse(responseContent);
                     targetId = jsonResponse.RootElement.GetProperty("id").GetInt32(); // or GetInt32() depending on the type
                     _targetIds.Add(targetId);
-                    Console.WriteLine($"TARGET\t({_targetCounter})\t +\t- Target {targetId} created Successfully.");
+                    sb.Append("\t++ Created Successfully.");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"TARGET\t({_targetCounter})\t\t- Failed to create Target {targetId}!");
+                    sb.AppendLine("\t-- Failed to Create.");
+                    sb.Append(ex.Message);
                 }
+                Console.WriteLine(sb.ToString());
 
 
                 // -- 2. Pin target
@@ -138,18 +190,21 @@ namespace MossadSimulationServer.Services
                         x = _random.Next(_maxMatrixX),
                         y = _random.Next(_maxMatrixY)
                     };
+                    sb.Clear();
 
                     try
                     {
                         // PUT it
-                        Console.WriteLine($"TARGET\t({_targetCounter})\t*\tPUT /targets/{targetId}/pin -- {await ToJSON(location).ReadAsStringAsync()}");
-                        var response = await _httpClient.PutAsync($"/targets/{targetId}/pin", ToJSON(location));
-                        Console.WriteLine($"TARGET\t({_targetCounter})\t +\t- Target {targetId} pinned Successfully: [{location.x}:{location.y}]");
+                        sb.Append($"TARGET\t{("(" + targetId + ")").PadRight(7)} {"PUT".PadRight(5)} /targets/{targetId}/pin -- {await ToJSON(location).ReadAsStringAsync()}");
+                        var response = await SendHttpRequestAsync(HttpMethod.Put, $"/targets/{targetId}/pin", location);
+                        sb.Append("\t++ Pinned Successfully.");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"TARGET\t({_targetCounter})\t\t- Failed to pin Target {targetId}: [{location.x}:{location.y}]!");
+                        sb.AppendLine("\t-- Failed to Pin.");
+                        sb.Append(ex.Message);
                     }
+                    Console.WriteLine(sb.ToString());
                 }
 
                 // Wait for a random period before generating the next threat
@@ -167,12 +222,13 @@ namespace MossadSimulationServer.Services
                 // -- 1. Create a target
                 int agentId = -1;
                 var agent = agents[random.Next(agents.Length)];
+                StringBuilder sb = new StringBuilder();
 
                 try
                 {
                     // POST it
-                    Console.WriteLine($"AGENT\t({_agentCounter})\t*\tPOST /agents -- {await ToJSON(agent).ReadAsStringAsync()}");
-                    var response = await _httpClient.PostAsync("/agents", ToJSON(agent));
+                    sb.Append($"AGENT\t{("(" + _agentCounter++ + ")").PadRight(7)} {"POST".PadRight(5)} /agents -- {await ToJSON(agent).ReadAsStringAsync()}");
+                    var response = await SendHttpRequestAsync(HttpMethod.Post, "/agents", agent);
 
                     // Handle response
                     response.EnsureSuccessStatusCode();
@@ -180,12 +236,14 @@ namespace MossadSimulationServer.Services
                     var jsonResponse = JsonDocument.Parse(responseContent);
                     agentId = jsonResponse.RootElement.GetProperty("id").GetInt32(); // or GetInt32() depending on the type
                     _agentIds.Add(agentId);
-                    Console.WriteLine($"AGENT\t({_agentCounter})\t +\t- Agent {agentId} created Successfully.");
+                    sb.Append("\t++ Created Successfully.");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"AGENT\t({_agentCounter})\t\t- Failed to create Agent {agentId}!");
+                    sb.AppendLine("\t-- Failed to Create.");
+                    sb.Append(ex.Message);
                 }
+                Console.WriteLine(sb.ToString());
 
 
                 // -- 2. Pin target
@@ -196,18 +254,21 @@ namespace MossadSimulationServer.Services
                         x = _random.Next(_maxMatrixX),
                         y = _random.Next(_maxMatrixY)
                     };
+                    sb.Clear();
 
                     try
                     {
                         // PUT it
-                        Console.WriteLine($"AGENT\t({_agentCounter})\t*\tPUT /agents/{agentId}/pin -- {await ToJSON(location).ReadAsStringAsync()}");
-                        var response = await _httpClient.PutAsync($"/agents/{agentId}/pin", ToJSON(location));
-                        Console.WriteLine($"AGENT\t({_agentCounter})\t +\t- Agent {agentId} pinned Successfully: [{location.x}:{location.y}]");
+                        sb.Append($"AGENT\t{("(" + agentId + ")").PadRight(7)} {"PUT".PadRight(5)} /agents/{agentId}/pin -- {await ToJSON(location).ReadAsStringAsync()}");
+                        var response = await SendHttpRequestAsync(HttpMethod.Put, $"/agents/{agentId}/pin", location);
+                        sb.Append("\t++ Pinned Successfully.");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"AGENT\t({_agentCounter})\t\t- Failed to pin Agent {agentId}: [{location.x}:{location.y}]!");
+                        sb.AppendLine("\t-- Failed to Pin.");
+                        sb.Append(ex.Message);
                     }
+                    Console.WriteLine(sb.ToString());
                 }
 
                 // Wait for a random period before generating the next threat
@@ -232,18 +293,21 @@ namespace MossadSimulationServer.Services
                     {
                         direction = RandomDirection()
                     };
+                    StringBuilder sb = new StringBuilder();
 
                     try
                     {
                         // PUT it
-                        Console.WriteLine($"AGENT\t({_agentCounter})\t*\tPUT /agents/{_agentIds[index]}/move -- {await ToJSON(direction).ReadAsStringAsync()}");
-                        var response = await _httpClient.PutAsync($"/agents/{_agentIds[index]}/move", ToJSON(direction));
-                        Console.WriteLine($"AGENT\t({_agentCounter})\t +\t- Agent {_agentIds[index]} moved Successfully: {direction.direction}");
+                        sb.Append($"AGENT\t{("(" + _agentIds[index] + ")").PadRight(7)} {"PUT".PadRight(5)} /agents/{_agentIds[index]}/move -- {await ToJSON(direction).ReadAsStringAsync()}");
+                        var response = await SendHttpRequestAsync(HttpMethod.Put, $"/agents/{_agentIds[index]}/move", direction);
+                        sb.Append("\t++ Moved Successfully.");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"AGENT\t({index})\t\t- Failed to move Agent {_agentIds[index]}: [{direction}]!");
+                        sb.AppendLine("\t-- Failed to Move.");
+                        sb.Append(ex.Message);
                     }
+                    Console.WriteLine(sb.ToString());
 
                     // Wait for a random period before generating the next threat
                     await Task.Delay(TimeSpan.FromSeconds(_moveDelay));
@@ -269,18 +333,21 @@ namespace MossadSimulationServer.Services
                     {
                         direction = RandomDirection()
                     };
+                    StringBuilder sb = new StringBuilder();
 
                     try
                     {
                         // PUT it
-                        Console.WriteLine($"TARGET\t({_agentCounter})\t*\tPUT /targets/{_targetIds[index]}/move -- {await ToJSON(direction).ReadAsStringAsync()}");
-                        var response = await _httpClient.PutAsync($"/targets/{_targetIds[index]}/move", ToJSON(direction));
-                        Console.WriteLine($"TARGET\t({_agentCounter})\t +\t- Target {_targetIds[index]} moved Successfully: {direction.direction}");
+                        sb.Append($"TARGET\t{("(" + _targetIds[index] + ")").PadRight(7)} {"PUT".PadRight(5)} /targets/{_targetIds[index]}/move -- {await ToJSON(direction).ReadAsStringAsync()}");
+                        var response = await SendHttpRequestAsync(HttpMethod.Put, $"/targets/{_targetIds[index]}/move", direction);
+                        sb.Append("\t++ Moved Successfully.");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"TARGET\t({index})\t\t- Failed to move Target {_targetIds[index]}: [{direction}]!");
+                        sb.AppendLine("\t-- Failed to Move.");
+                        sb.Append(ex.Message);
                     }
+                    Console.WriteLine(sb.ToString());
 
                     // Wait for a random period before generating the next threat
                     await Task.Delay(TimeSpan.FromSeconds(_moveDelay));
@@ -303,23 +370,61 @@ namespace MossadSimulationServer.Services
                 for (int index = 0; index < _targetIds.Count; index++)
                 {
                     var direction = RandomDirection();
+                    StringBuilder sb = new StringBuilder();
 
                     try
                     {
                         // PUT it
-                        Console.WriteLine($"MISSION\t({_agentCounter})\t*\tPOST /missions/update");
-                        var response = await _httpClient.PostAsync($"/missions/update", null);
-                        Console.WriteLine($"MISSION\t({_agentCounter})\t +\t- Missions updated Successfully");
+                        sb.Append($"MISSION\t{("(" + _missionCounter++ + ")").PadRight(7)} {"POST".PadRight(5)} /missions/update");
+                        var response = await SendHttpRequestAsync(HttpMethod.Post, $"/missions/update", new {});
+                        sb.Append("\t++ Updated Successfully.");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"MISSION\t({index})\t\t- Failed to update Missions!");
+                        sb.AppendLine("\t-- Failed to Update.");
+                        sb.Append(ex.Message);
                     }
+                    Console.WriteLine(sb.ToString());
 
                     // Wait for a random period before generating the next threat
                     await Task.Delay(TimeSpan.FromSeconds(_syncDelay));
                 }
             }
+        }
+
+        private async Task<HttpResponseMessage> SendHttpRequestAsync(HttpMethod method, string url, object data)
+        {
+            var requestMessage = new HttpRequestMessage(method, url);
+
+            // Add the JSON data to the request body
+            if (method != HttpMethod.Get)
+            {
+                requestMessage.Content = ToJSON(data);
+            }
+
+            // Add the token either to the header or to the body based on the flag
+            if (_authTokenType == AUTH_TOKEN_TYPE.HEADER)
+            {
+                requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+            }
+            else if (_authTokenType == AUTH_TOKEN_TYPE.BODY) 
+            {
+                // Create a dictionary to hold the combined data
+                var body = new Dictionary<string, object>();
+
+                // Use reflection to "spread" the properties of the data object into the dictionary
+                foreach (var property in data.GetType().GetProperties())
+                {
+                    body[property.Name] = property.GetValue(data);
+                }
+
+                // Add the token as a new property
+                body["token"] = _token;
+                requestMessage.Content = ToJSON(body);
+            }
+
+            // Send the request and return the response
+            return await _httpClient.SendAsync(requestMessage);
         }
 
         private static string RandomDirection()
